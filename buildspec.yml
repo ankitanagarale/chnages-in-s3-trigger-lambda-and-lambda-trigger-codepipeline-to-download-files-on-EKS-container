@@ -1,0 +1,39 @@
+version: 0.2
+env:
+  secrets-manager:
+    REGION: "eks:region"
+    ASSUME_ROLE_ARN: "eks:assume_role_arn"
+    CLUSTER_NAME: "eks:cluster_name"
+    BUCKET_NAME: "eks:bucket_name"
+  variables:
+    pod_selectors: "app=aws-cli"
+    path: "demo/pod.yml"
+
+phases:
+  install:
+    commands:
+    - sudo yum install docker -y
+    - sudo yum install gettext -y
+    - curl -O https://s3.us-west-2.amazonaws.com/amazon-eks/1.23.15/2023-01-11/bin/linux/amd64/kubectl
+    - chmod +x kubectl
+    - sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+
+  build:
+    commands:
+
+    - echo "------ getting the temporary creds ------"
+    - CREDS=$(aws sts assume-role --role-arn ${ASSUME_ROLE_ARN} --role-session-name codebuild --duration-seconds 900)
+    - export AWS_ACCESS_KEY_ID="$(echo ${CREDS} | jq -r '.Credentials.AccessKeyId')"
+    - export AWS_SECRET_ACCESS_KEY="$(echo ${CREDS} | jq -r '.Credentials.SecretAccessKey')"
+    - export AWS_SESSION_TOKEN="$(echo ${CREDS} | jq -r '.Credentials.SessionToken')"
+    - export AWS_EXPIRATION=$(echo ${CREDS} | jq -r '.Credentials.Expiration')
+
+    - echo "------ logging into eks ------"
+    - aws eks update-kubeconfig --name ${CLUSTER_NAME} --region ${REGION}
+    - echo "--------- getting the pod id ------------"
+    - pod_id=$(kubectl get pods --selector="${pod_selectors}" --no-headers | awk '{print $1}')
+    - echo ${pod_id}
+    - echo "--------- downloding the s3 object ------------"
+    - kubectl exec -it ${pod_id} -- aws s3 cp s3://${BUCKET_NAME}/${path} ./s3_download.yml
+    - echo "-------------- contents of file ------------------"
+    - kubectl exec -it ${pod_id} -- cat ./s3_download.yml
