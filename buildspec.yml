@@ -32,7 +32,7 @@ phases:
     - aws eks update-kubeconfig --name ${CLUSTER_NAME} --region ${REGION}
     - echo "--------- getting the pod id ------------"
     - kubectl get pods
-    #- pod_id=$(kubectl get pods --selector="${pod_selectors}" --no-headers | awk '{print $1}')
+    - pod_id=$(kubectl get pods --selector="${pod_selectors}" --no-headers | awk '{print $1}')
     - echo ${pod_id}
     - echo "--------- downloding the s3 object ------------"
     - kubectl exec -it ${pod_id} -- aws s3 cp s3://${BUCKET_NAME}/${path} ./s3_download.yml
